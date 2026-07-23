@@ -6,6 +6,9 @@ app = FastAPI()
 
 DB_FILE = "tasks.db"
 
+class TaskCreate(BaseModel):
+    title: str = Field(..., min_length=1)
+
 def get_db_connection():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
@@ -47,7 +50,7 @@ def get_info():
 def get_health():
     return {"status": "ok"}
 
-# Stage 1: Read Endpoints using SQL
+# Stage 1: Read Endpoints
 @app.get("/tasks")
 def get_all_tasks():
     conn = get_db_connection()
@@ -80,4 +83,26 @@ def get_single_task(id: int):
         "id": row["id"],
         "title": row["title"],
         "done": bool(row["done"])
+    }
+
+# Stage 2: Create Endpoint with Database Insert
+@app.post("/tasks", status_code=201)
+def create_task(task_data: TaskCreate):
+    if len(task_data.title.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Title cannot be empty")
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO tasks (title, done) VALUES (?, ?)",
+        (task_data.title.strip(), False)
+    )
+    conn.commit()
+    new_id = cursor.lastrowid
+    conn.close()
+    
+    return {
+        "id": new_id,
+        "title": task_data.title.strip(),
+        "done": False
     }
